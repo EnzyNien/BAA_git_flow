@@ -129,7 +129,7 @@ venv.bak/
 
 node_modules
 
-/static/
+
 !/static/.gitkeep
 /media/
 /tmp/
