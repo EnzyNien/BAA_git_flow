@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[[source]]
+url = "https://pypi.itgene.ru/simple"
+verify_ssl = true
+name = "itgene"
+
+[packages]
+Django = "==1.11.15"
+requests = "*"
+Pillow = "*"
+pytz = "==2018.5"
+
+[dev-packages]
+
+[requires]
+python_version = "3.6"

@@ -1,0 +1,1 @@
+D:\_SS\BooksAndAuthors\BooksAndAuthors\Django_1.11\Lib\site-packages\django\bin\django-admin.py migrate

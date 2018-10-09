@@ -1,0 +1,44 @@
+﻿{% load staticfiles %}
+{% load utils %}
+
+<!DOCTYPE html>
+<html lang="en">
+    {% include "mainapp/includes/inc__head.html" %}
+
+    <body>
+    <div class="container">
+    <div class="row">
+        <div class="col-lg-1">
+        </div>
+        <div class="col-lg-5 col-md-5 mb-5">
+            <div class="row">
+                <div class="col-md-12">
+                    <h1 class="">Object details</h1>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <ul class="">
+                    {% get_fields_from_row object as item_row %}
+                    {% for item in item_row %}
+                    <li>{{item}}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <button class="btn btn-primary" type="button" href="{{referer}}" style="width:100%">Go back</button>
+                </div>
+            </div>
+		</div>
+	</div>
+    </div>
+    </body>
+</html>
+
+
+
+
+
+
