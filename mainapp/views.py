@@ -80,7 +80,7 @@ class BooksList(BaseView, ListView):
 
     model = Book
     template_name = 'mainapp/lists.html'
-    paginate_by = 10
+    paginate_by = 3
 
     def get_queryset(self):
         return super().get_queryset()
