@@ -13,7 +13,12 @@ Django = "==1.11.15"
 requests = "*"
 Pillow = "*"
 pytz = "==2018.5"
-
+django-pyodbc-azure = "==1.11.15.0"
+pyodbc = "==4.0.24"
+psycopg2 = "*"
+# Configuration via environment variables
+django-environ = "==0.4.4"
+python-dateutil ="*"
 [dev-packages]
 
 [requires]

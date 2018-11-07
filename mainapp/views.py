@@ -1,15 +1,15 @@
 import csv
 import os
 from io import StringIO
+import json
 
 from functools import wraps
+from dateutil.parser import parse
 
+from django.http import JsonResponse
 from django.shortcuts import render, HttpResponse
-from django.http import StreamingHttpResponse
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
-from django.core import serializers
-from django.core.files import File
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.views.generic.list import ListView
 from django.views.generic import UpdateView
 from django.views.generic.detail import DetailView, SingleObjectMixin
@@ -17,52 +17,28 @@ from django.views.generic.edit import DeleteView, CreateView
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.urls import reverse_lazy
 from django.db.models import Q
-
+from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404
 
-from mainapp.models import Author, Book, Tag, MODEL_NAME_GEN
-#from mainapp.forms import ClientsEditForm, ClientsAddForm
+from mainapp.models import Author, Book, Tag, URL_ITEMS, URL_DICT
+from mainapp.forms import FORM_DICT, AutorSearchForm, BookSearchForm, TagSearchForm
 
 
 def add_slash(val):
     return '/' + val + '/'
 
+
 def main(request):
-    context = {'model_list':MODEL_NAME_GEN}
+    context = {'url_list': URL_ITEMS}
     context['page_name'] = 'Выберите одну из таблиц'
     return render(request, 'mainapp/index.html', context)
 
+
 class BaseView(ListView):
 
-    def get_queryset(self):
-        self.page = self.request.GET.get('page', None)
-        search = self.request.GET.get('search', None)
-        name__regex = r'^.*{}.*$'.format(search)
-
-        if search:
-            result_query = self.model.objects.all()
-        else:
-            result_query = self.model.objects.all()
-        return result_query
-
     def get_context_data(self, *args, **kwargs):
+        self.page = self.request.GET.get('page', None)
         context = super().get_context_data(**kwargs)
-        #page = self.request.GET.get('page', None)
-        #search = self.request.GET.get('search', None)
-
-        #name__regex = r'^.*{}.*$'.format(search)
-
-        # if search:
-        #    result_query = self.model.objects.all()
-        #    #result_query = self.model.objects.filter(
-        #    #    Q(
-        #    #        name__regex=name__regex) | Q(
-        #    #        company__name__regex=name__regex) | Q(
-        #    #        email__regex=name__regex) | Q(
-        #    #        phone__regex=name__regex) | Q(
-        #    #            interests__regex=name__regex))
-        # else:
-        #    result_query = self.model.objects.all()
         paginator = Paginator(self.get_queryset(), self.paginate_by)
 
         try:
@@ -71,25 +47,91 @@ class BaseView(ListView):
             result_query = paginator.page(1)
         except EmptyPage:
             result_query = paginator.page(paginator.num_pages)
-        context['model'] = self.model._meta.model_name
-        context['result_query'] = result_query
+
+        context['model'] = self.model._meta.verbose_name_plural
         context['url_pref'] = add_slash(self.model.Other.url)
+        context['result_query'] = result_query
         return context
+
+
+class BaseViewObj(SingleObjectMixin):
+
+    def get_object(self, queryset=None):
+        pk = self.kwargs.get('pk', -1)
+        model_str = self.kwargs.get('model_str', None)
+        if model_str in URL_DICT.keys():
+            obj = get_object_or_404(URL_DICT[model_str], pk=pk)
+        else:
+            obj = None
+        return obj
+
 
 class BooksList(BaseView, ListView):
 
     model = Book
     template_name = 'mainapp/lists.html'
-    paginate_by = 3
+    paginate_by = 10
 
     def get_queryset(self):
-        return super().get_queryset()
+        request = self.request
+        if request.method == 'POST':
+            self.allow_empty = True
+        if request.is_ajax():
+            if request.method == 'GET':
+                author = request.GET.get('id_author', '')
+                tag = request.GET.get('id_tag', '')
+                pub_date = request.GET.get('id_publication_date', '')
+                search = request.GET.get('id_search', '')
+                query_list = []
+                if search:
+                    search__regex = r'^.*{}.*$'.format(search.lower())
+                    query_list.append(
+                        Q(
+                            fname__regex=search__regex) | Q(
+                            mname__regex=search__regex) | Q(
+                            lname__regex=search__regex) | Q(
+                            namel__regex=search__regex) | Q(
+                            descl__regex=search__regex))
+
+                if author:
+                    query_list.append(Q(author__pk=author))
+                if tag:
+                    query_list.append(Q(tags__pk__in=[tag, ]))
+                if pub_date:
+                    try:
+                        pub_date = parse(pub_date)
+                    except ValueError:
+                        pass
+                    except OverflowError:
+                        pass
+                    else:
+                        query_list.append(Q(publication_date=pub_date))
+                try:
+                    self.template_name = 'mainapp/includes/inc__lists.html'
+                    result = Book.objects.annotate(
+                        fname=Lower('author__first_name'),
+                        mname=Lower('author__middle_name'),
+                        lname=Lower('author__last_name'),
+                        namel=Lower('name'),
+                        descl=Lower('description')).filter(
+                        *query_list)
+                    return result
+                except ValidationError:
+                    self.allow_empty = True
+            else:
+                self.allow_empty = True
+        else:
+            return super().get_queryset()
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['col_names'] = self.model.get_field_names_gen(['id','description','tags',])
+        context['ignore_col'] = ['id', 'description', 'tags', ]
+        context['col_names'] = self.model.get_field_names_gen(
+            context['ignore_col'])
         context['page_name'] = 'Список книг'
+        context['search'] = BookSearchForm()
         return context
+
 
 class TagsList(BaseView, ListView):
 
@@ -98,13 +140,45 @@ class TagsList(BaseView, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return super().get_queryset()
+        request = self.request
+        if request.method == 'POST':
+            self.allow_empty = True
+        if request.is_ajax():
+            if request.method == 'GET':
+                name = request.GET.get('id_search', '')
+                is_active = request.GET.get('id_is_active', '')
+                query_list = []
+                if name:
+                    search__regex = r'^.*{}.*$'.format(name.lower())
+                    query_list.append(Q(name_l__regex=search__regex))
+                if is_active:
+                    if is_active == '1':
+                        is_active = [True, ]
+                    elif is_active == '0':
+                        is_active = [False, ]
+                    else:
+                        is_active = [True, False, ]
+                    query_list.append(Q(is_active__in=is_active))
+                try:
+                    self.template_name = 'mainapp/includes/inc__lists.html'
+                    return Tag.objects.annotate(
+                        name_l=Lower('name')).filter(
+                        *query_list)
+                except ValidationError:
+                    self.allow_empty = True
+            else:
+                self.allow_empty = True
+        else:
+            return super().get_queryset()
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['ignore_col'] = []
         context['col_names'] = self.model.get_field_names_gen()
         context['page_name'] = 'Список тегов'
+        context['search'] = TagSearchForm()
         return context
+
 
 class AuthorsList(BaseView, ListView):
 
@@ -113,102 +187,138 @@ class AuthorsList(BaseView, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return super().get_queryset()
+        request = self.request
+        if request.method == 'POST':
+            self.allow_empty = True
+        if request.is_ajax():
+            if request.method == 'GET':
+                search = request.GET.get('id_search', '')
+                if search:
+                    search = search.lower()
+                    search__regex = r'.*{}.*'.format(search)
+                    query_list = [
+                        Q(
+                        fname__regex=search__regex) | Q(
+                        mname__regex=search__regex) | Q(
+                        lname__regex=search__regex) | Q(
+                        emaill__regex=search__regex), 
+                        ]
+                else:
+                    query_list = []
+                try:
+                    self.template_name = 'mainapp/includes/inc__lists.html'
+                    annotate = Author.objects.annotate(
+                        fname=Lower('first_name'),
+                        mname=Lower('middle_name'),
+                        lname=Lower('last_name'),
+                        emaill=Lower('email'))
+                    result = annotate.filter(*query_list)
+                    return result
+                except ValidationError:
+                    self.allow_empty = True
+            else:
+                self.allow_empty = True
+        else:
+            return super().get_queryset()
 
     def get_context_data(self, *args, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['ignore_col'] = []
         context['col_names'] = self.model.get_field_names_gen()
         context['page_name'] = 'Перечень авторов'
+        context['search'] = AutorSearchForm()
         return context
 
-#class Add(CreateView):
-
-#    model = Clients
-#    form_class = ClientsAddForm
-#    template_name = 'mainapp/add.html'
-#    success_url = '/'
-
-#    def get_object(self, queryset=None):
-#        return super().get_object(queryset=None)
-
-#    def dispatch(self, *args, **kwargs):
-#        return super().dispatch(*args, **kwargs)
-
-#    def get_context_data(self, *args, **kwargs):
-#        self.context = super().get_context_data(*args, **kwargs)
-#        return self.context
-
-
-#class Delete(BaseView, DeleteView):
-
-#    model = Clients
-#    form_class = ClientsEditForm
-#    success_url = '/'
-
-#    def get_object(self, queryset=None):
-#        return super().get_object(queryset=None)
+    #def dispatch(self, request, *args, **kwargs):
+    #    if request.is_ajax() and request.GET.get('model', None) is not None:
+    #        try:
+    #            model = request.GET.get('model', None)
+    #            ref = request.GET.get('ref', None)
+    #            pk = request.GET.get('pk', -1)
+    #            model = URL_DICT[model]
+    #            filter_dict = {ref + '__pk': pk}
+    #            result = model.objects.filter(**filter_dict).values()
+    #            result = ({"data": list(result)})
+    #        except BaseException:
+    #            result = json.dumps({"data": []})
+    #        finally:
+    #            return JsonResponse(result)
+    #    else:
+    #        return super().dispatch(request, *args, **kwargs)
 
 
-#class Edit(BaseView, UpdateView):
+class Add(CreateView):
 
-#    model = Clients
-#    form_class = ClientsEditForm
-#    template_name = 'mainapp/edit.html'
-#    success_url = '/'
+    model = None
+    form_class = None
+    success_url = ''
+    template_name = 'mainapp/add.html'
 
-#    def get_object(self, queryset=None):
-#        return super().get_object(queryset=None)
+    def get_form_class(self):
+        self.model_str = self.kwargs.get('model_str', None)
+        if self.model_str in URL_DICT.keys():
+            self.model = URL_DICT[self.model_str]
+            self.success_url = reverse_lazy(f'mainapp:{self.model_str}_list')
+            return FORM_DICT[self.model_str]
 
-#    def dispatch(self, *args, **kwargs):
-#        return super().dispatch(*args, **kwargs)
-
-#    def get_context_data(self, *args, **kwargs):
-#        self.context = super().get_context_data(*args, **kwargs)
-#        return self.context
-
-
-#class Details(BaseView, DetailView):
-
-#    model = Clients
-#    template_name = 'mainapp/details.html'
-
-#    def get_object(self, queryset=None):
-#        return super().get_object(queryset=None)
-
-#    def get_context_data(self, *args, **kwargs):
-#        self.context = super().get_context_data(*args, **kwargs)
-#        self.context['referer'] = self.request.META.get('HTTP_REFERER', '/')
-#        return self.context
+    def get_context_data(self, *args, **kwargs):
+        self.context = super().get_context_data(*args, **kwargs)
+        self.context['model_name'] = self.model._meta.verbose_name
+        return self.context
 
 
-#def to_json(requests, *agrs, **kwargs):
-#    qs = Clients.objects.all()
-#    qs_json = serializers.serialize('json', qs)
-#    response = HttpResponse(qs_json, content_type='application/json')
-#    response['Content-Disposition'] = 'attachment; filename="file.json"'
-#    return response
+class Edit(BaseViewObj, UpdateView):
+
+    model = None
+    template_name = 'mainapp/edit.html'
+    success_url = ''
+
+    def get_object(self, queryset=None):
+        return super(Edit, self).get_object(queryset=None)
+
+    def get_form_class(self):
+        self.model_str = self.kwargs.get('model_str', None)
+        if self.model_str in URL_DICT.keys():
+            self.model = URL_DICT[self.model_str]
+            self.success_url = reverse_lazy(f'mainapp:{self.model_str}_list')
+            return FORM_DICT[self.model_str]
+
+    def get_context_data(self, *args, **kwargs):
+        self.context = super().get_context_data(*args, **kwargs)
+        self.context['model_name'] = self.model._meta.verbose_name
+        return self.context
 
 
-#def to_csv(requests, *agrs, **kwargs):
-#    qs = Clients.objects.all()
-#    model = Clients
-#    full_path = os.path.join(settings.MEDIA_ROOT, 'fils.csv')
+class Details(BaseViewObj, DetailView):
 
-#    response = HttpResponse(content_type='text/csv')
-#    response['Content-Disposition'] = 'attachment; filename="file.csv"'
-#    writer = csv.writer(response)
+    model = ''
+    template_name = 'mainapp/details.html'
 
-#    headers = []
-#    for field in model._meta.fields:
-#        headers.append(field.name)
-#    writer.writerow(headers)
-#    for obj in qs:
-#        row = []
-#        for field in headers:
-#            if field in headers:
-#                val = getattr(obj, field)
-#                if callable(val):
-#                    val = val()
-#                row.append(val)
-#        writer.writerow(row)
-#    return response
+    def get_object(self, queryset=None):
+        return super().get_object(queryset=None)
+
+    def get_context_data(self, *args, **kwargs):
+        self.context = super().get_context_data(*args, **kwargs)
+        #self.context['referer'] = self.request.META.get('HTTP_REFERER', '/')
+
+        model_str = self.kwargs.get('model_str', None)
+        if model_str in URL_DICT.keys():
+            model = URL_DICT[model_str]
+            self.context['col_names'] = model.get_field_names_gen()
+            self.context['col_m2m'] = model.get_m2m_field_names_gen()
+            self.context['model_name'] = model._meta.verbose_name
+            self.context['url_pref'] = add_slash(model.Other.url)
+        return self.context
+
+
+class Delete(BaseViewObj, DeleteView):
+
+    model = ''
+    success_url = '/'
+
+    def get_object(self, queryset=None):
+        return super().get_object(queryset=None)
+
+
+def get_other(request, *args, **kwargs):
+    return HttpResponse('ok')

@@ -13,10 +13,10 @@
         <div class="col-lg-5 col-md-5 mb-5">
           <div class="row">
             <div class="col-md-12">
-              <h1 class="">Edit Contact</h1>
+              <h1 class="">Редактирование строки таблицы {{model_name}}</h1>
             </div>
           </div>
-		<form class="form-signin" action="" method="post">
+		<form class="form-signin" action="" method="post" enctype="multipart/form-data">
 			{% csrf_token %}
 			{% for item in form %}
 			<div class="form-group">
@@ -41,9 +41,3 @@
     </div>
     </body>
 </html>
-
-
-
-
-
-

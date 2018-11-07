@@ -6,90 +6,53 @@
     {% include "mainapp/includes/inc__head.html" %}
 
 <body>
-   <div class="py-2">
-    </div>
+  <div class="py-2">
+  </div>
   <div class="row">
-    <div class="col-md-12">
-      <h1 class="">{{page_name}}</h1>
+    <div class="col-1"></div>
+    <div class="col-md-10">
+      <a class="btn-sm btn-primary" href="/add{{url_pref}}">Add new row</a>
     </div>
+    <div class="col-1"></div>
+  </div>
+
+  <div class="py-2"></div>
+  {% include "mainapp/includes/inc__search.html" %}
+  <div class="py-2"></div>
+
+  <div id="table_row">
+    {% include "mainapp/includes/inc__lists.html" %}
+  </div>
+  {% include "mainapp/includes/inc__modal.html" %}
+  <div class="row">
+    <div class="col-1"></div>
+    <div class="col-10">
+      <ul class="pagination content-center">
+        {% if result_query.has_previous %}
+        <li class="page-item">
+          <a class="page-link click-a" id="page_{{ result_query.previous_page_number }}" href="{{url_pref}}?page={{ result_query.previous_page_number }}">previous</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled">
+          <span class="page-link">Page {{ result_query.number }} of {{ result_query.paginator.num_pages }}</span>
+        </li>
+        {% if result_query.has_next %}
+        <li class="page-item">
+          <a class="page-link click-a" id="page_{{ result_query.next_page_number }}" href="{{url_pref}}?page={{ result_query.next_page_number }}">next</a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+    <div class="col-1"></div>
   </div>
   <div class="py-2">
   </div>
-    <div class="row-fluide">
-        <div class="input-group mb-12">
-            <input type="text" class="form-control" placeholder="search..." id="search_text">
-            <div class="input-group-append">
-                <span class="input-group-text" style="cursor: pointer;">
-                    <span class="fa fa-search" id="search_button"></span>
-                </span>
-            </div>
-        </div>
+  <div class="row">
+    <div class="col-1"></div>
+    <div class="col-md-10">
+      <a class="btn-sm btn-primary" href="/">back</a>
     </div>
-
-    <script>
-        $("#search_button").click(function () {
-            var search_text = $("#search_text").val(); 
-            var url = new URL(window.location.href);
-            url.searchParams.set('search',search_text);
-            window.location.href = url.href;
-        });
-    </script>
-
-    <div class="py-2">
-    </div>
-  <div class="col-lg-8 col-md-12">
-    <a class="btn-sm btn-primary" href="/add/">Add new row</a>
+    <div class="col-1"></div>
   </div>
-  <div class="py-2">
-  </div>
-      <div class="row">
-        <div class="col-md-12">
-          <table class="table">
-            <thead>
-              <tr>
-                {% for col_name in col_names %}
-                    <th>{{col_name}}</th>
-                {% endfor %}
-              </tr>
-
-            </thead>
-            <tbody>
-              {% for row in result_query %}
-              <tr>
-                    {% get_fields_from_row row model as item_row %}
-                    {% for item in item_row %}
-                        <td>{{item|default_if_none:"--"}}</td>
-                    {% endfor %}
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-     <div class="row">
-        <div class="col-12">
-            <ul class="pagination content-center">
-                {% if result_query.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link click-a" id="page_{{ result_query.previous_page_number }}" href="{{url_pref}}?page={{ result_query.previous_page_number }}">previous</a>
-                    </li>
-                {% endif %}
-                    <li class="page-item disabled">
-                        <span class="page-link">Page {{ result_query.number }} of {{ result_query.paginator.num_pages }}</span>
-                    </li>
-                {% if result_query.has_next %}
-                    <li class="page-item">
-                        <a class="page-link click-a" id="page_{{ result_query.next_page_number }}" href="{{url_pref}}?page={{ result_query.next_page_number }}">next</a>
-                    </li>
-                {% endif %}
-            </ul>
-        </div>
-    </div>
 </body>
 </html>
-
-
-
-
-
-

@@ -37,7 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'mainapp'
+    'mainapp',
 ]
 
 MIDDLEWARE = [
@@ -76,9 +76,18 @@ WSGI_APPLICATION = 'books_and_authors.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-    }
+        'ENGINE': 'sql_server.pyodbc',
+        'NAME': 'baa',
+        'USER': 'SA',
+        'PASSWORD': 'Alex11111986==',
+        'HOST': '127.0.0.1',
+        'PORT': 1433,
+        'OPTIONS': {
+            'driver': 'ODBC Driver 17 for SQL Server',
+            'host_is_server': True,
+            'extra_params': "ClientCharset=UTF-8"
+        }
+    },
 }
 
 
